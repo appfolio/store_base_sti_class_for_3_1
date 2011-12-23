@@ -21,7 +21,6 @@ Gem::Specification.new do |s|
     "README.rdoc"
   ]
   s.files = [
-    ".document",
     "CHANGELOG",
     "Gemfile",
     "Gemfile.lock",
@@ -29,13 +28,14 @@ Gem::Specification.new do |s|
     "README.rdoc",
     "Rakefile",
     "VERSION",
-    "lib/store_base_sti_class_for_3_0.rb",
     "lib/store_base_sti_class_for_3_1.rb",
+    "polymorphic_and_sti_fix_for_rails_3_1.diff",
+    "store_base_sti_class_for_3_1.gemspec",
     "test/connection.rb",
     "test/helper.rb",
     "test/models.rb",
     "test/schema.rb",
-    "test/test_store_base_sti_class_for_3_0.rb"
+    "test/test_store_base_sti_class_for_3_1.rb"
   ]
   s.homepage = %q{http://github.com/appfolio/store_base_sti_class_for_3_1}
   s.licenses = [%q{MIT}]
@@ -47,7 +47,7 @@ Gem::Specification.new do |s|
     "test/helper.rb",
     "test/models.rb",
     "test/schema.rb",
-    "test/test_store_base_sti_class_for_3_0.rb"
+    "test/test_store_base_sti_class_for_3_1.rb"
   ]
 
   if s.respond_to? :specification_version then
