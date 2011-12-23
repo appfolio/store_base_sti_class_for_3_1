@@ -1,0 +1,111 @@
+diff --git a/activerecord/lib/active_record/associations/association_scope.rb b/activerecord/lib/active_record/associations/association_scope.rb
+index 9e6d9e7..cbf176e 100644
+--- a/activerecord/lib/active_record/associations/association_scope.rb
++++ b/activerecord/lib/active_record/associations/association_scope.rb
+@@ -81,7 +81,11 @@ module ActiveRecord
+             scope = scope.where(table[key].eq(owner[foreign_key]))
+ 
+             if reflection.type
+-              scope = scope.where(table[reflection.type].eq(owner.class.base_class.name))
++              unless ActiveRecord::Base.store_base_sti_class
++                scope = scope.where(table[reflection.type].eq(owner.class.name))
++              else
++                scope = scope.where(table[reflection.type].eq(owner.class.base_class.name))
++              end
+             end
+ 
+             conditions.each do |condition|
+diff --git a/activerecord/lib/active_record/associations/belongs_to_polymorphic_association.rb b/activerecord/lib/active_record/associations/belongs_to_polymorphic_association.rb
+index 2ee5dbb..837abfb 100644
+--- a/activerecord/lib/active_record/associations/belongs_to_polymorphic_association.rb
++++ b/activerecord/lib/active_record/associations/belongs_to_polymorphic_association.rb
+@@ -11,7 +11,11 @@ module ActiveRecord
+ 
+         def replace_keys(record)
+           super
+-          owner[reflection.foreign_type] = record && record.class.base_class.name
++          unless ActiveRecord::Base.store_base_sti_class
++            owner[reflection.foreign_type] = record && record.class.sti_name
++          else
++            owner[reflection.foreign_type] = record && record.class.base_class.name
++          end
+         end
+ 
+         def different_target?(record)
+diff --git a/activerecord/lib/active_record/associations/join_dependency/join_association.rb b/activerecord/lib/active_record/associations/join_dependency/join_association.rb
+index 03963ab..3ad1aeb 100644
+--- a/activerecord/lib/active_record/associations/join_dependency/join_association.rb
++++ b/activerecord/lib/active_record/associations/join_dependency/join_association.rb
+@@ -93,7 +93,12 @@ module ActiveRecord
+             constraint = build_constraint(reflection, table, key, foreign_table, foreign_key)
+ 
+             conditions = self.conditions[i].dup
+-            conditions << { reflection.type => foreign_klass.base_class.name } if reflection.type
++
++            if ActiveRecord::Base.store_base_sti_class
++              conditions << { reflection.type => foreign_klass.base_class.name } if reflection.type
++            else
++              conditions << { reflection.type => ([foreign_klass.base_class] + foreign_klass.base_class.descendants).map(&:name) } if reflection.type
++            end
+ 
+             unless conditions.empty?
+               constraint = constraint.and(sanitize(conditions, table))
+diff --git a/activerecord/lib/active_record/associations/preloader/association.rb b/activerecord/lib/active_record/associations/preloader/association.rb
+index 779f816..e99cfcb 100644
+--- a/activerecord/lib/active_record/associations/preloader/association.rb
++++ b/activerecord/lib/active_record/associations/preloader/association.rb
+@@ -104,7 +104,7 @@ module ActiveRecord
+           if options[:as]
+             scope = scope.where(
+               klass.table_name => {
+-                reflection.type => model.base_class.sti_name
++                reflection.type => ActiveRecord::Base.store_base_sti_class ? model.base_class.sti_name : model.sti_name
+               }
+             )
+           end
+diff --git a/activerecord/lib/active_record/associations/preloader/through_association.rb b/activerecord/lib/active_record/associations/preloader/through_association.rb
+index ad6374d..7e14fa0 100644
+--- a/activerecord/lib/active_record/associations/preloader/through_association.rb
++++ b/activerecord/lib/active_record/associations/preloader/through_association.rb
+@@ -49,7 +49,7 @@ module ActiveRecord
+           through_options = {}
+ 
+           if options[:source_type]
+-            through_options[:conditions] = { reflection.foreign_type => options[:source_type] }
++            through_options[:conditions] = { reflection.foreign_type =>  ([options[:source_type].constantize] + options[:source_type].constantize.descendants).map(&:to_s)  }
+           else
+             if options[:conditions]
+               through_options[:include]    = options[:include] || options[:source]
+diff --git a/activerecord/lib/active_record/base.rb b/activerecord/lib/active_record/base.rb
+index c866736..3673294 100644
+--- a/activerecord/lib/active_record/base.rb
++++ b/activerecord/lib/active_record/base.rb
+@@ -424,6 +424,11 @@ module ActiveRecord #:nodoc:
+     # Determine whether to store the full constant name including namespace when using STI
+     class_attribute :store_full_sti_class
+     self.store_full_sti_class = true
++    
++    # Store the actual class (instead of the base class) in polymorhic _type columns when using STI
++    class_attribute :store_base_sti_class
++    self.store_base_sti_class = true
++    
+ 
+     # Stores the default scope for the class
+     class_attribute :default_scopes, :instance_writer => false
+diff --git a/activerecord/lib/active_record/reflection.rb b/activerecord/lib/active_record/reflection.rb
+index 6ddf76e..6affef3 100644
+--- a/activerecord/lib/active_record/reflection.rb
++++ b/activerecord/lib/active_record/reflection.rb
+@@ -451,7 +451,11 @@ module ActiveRecord
+           through_conditions = through_reflection.conditions
+ 
+           if options[:source_type]
+-            through_conditions.first << { foreign_type => options[:source_type] }
++            unless ActiveRecord::Base.store_base_sti_class
++              through_conditions.first << { foreign_type => ([options[:source_type].constantize] + options[:source_type].constantize.descendants).map(&:to_s) }
++            else
++              through_conditions.first << { foreign_type => options[:source_type] }
++            end
+           end
+ 
+           # Recursively fill out the rest of the array from the through reflection
