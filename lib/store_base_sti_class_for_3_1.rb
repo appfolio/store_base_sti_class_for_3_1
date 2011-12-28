@@ -9,6 +9,30 @@ if ActiveRecord::VERSION::STRING =~ /^3\.1/
     end
     
     module Associations
+      class Association
+        
+        def creation_attributes
+          attributes = {}
+
+          if reflection.macro.in?([:has_one, :has_many]) && !options[:through]
+            attributes[reflection.foreign_key] = owner[reflection.active_record_primary_key]
+
+            if reflection.options[:as]
+              # START PATCH
+              # original:
+              # attributes[reflection.type] = owner.class.base_class.name
+              
+              attributes[reflection.type] = ActiveRecord::Base.store_base_sti_class ? owner.class.base_class.name : owner.class.name
+              
+              # END PATCH
+            end
+          end
+
+          attributes
+        end
+        
+      end
+      
       class JoinDependency # :nodoc:
         class JoinAssociation < JoinPart # :nodoc:
           def join_to(relation)
@@ -54,7 +78,7 @@ if ActiveRecord::VERSION::STRING =~ /^3\.1/
               if ActiveRecord::Base.store_base_sti_class
                 conditions << { reflection.type => foreign_klass.base_class.name } if reflection.type
               else
-                conditions << { reflection.type => ([foreign_klass.base_class] + foreign_klass.base_class.descendants).map(&:name) } if reflection.type
+                conditions << { reflection.type => ([foreign_klass] + foreign_klass.descendants).map(&:name) } if reflection.type
               end
               
               # END PATCH
@@ -212,9 +236,19 @@ if ActiveRecord::VERSION::STRING =~ /^3\.1/
               constraint = table[key].eq(foreign_table[foreign_key])
 
               if reflection.type
-                #TODO:  create test case for this and fix
-                type = chain[i + 1].klass.base_class.name
-                constraint = constraint.and(table[reflection.type].eq(type))
+                # START PATCH
+                # original: type = chain[i + 1].klass.base_class.name
+                #           constraint = constraint.and(table[reflection.type].eq(type))
+                
+                if ActiveRecord::Base.store_base_sti_class
+                  type = chain[i + 1].klass.base_class.name
+                  constraint = constraint.and(table[reflection.type].eq(type))
+                else
+                  klass = chain[i + 1].klass
+                  constraint = constraint.and(table[reflection.type].in(([klass] + klass.descendants).map(&:name)))
+                end
+                
+                # END PATCH
               end
 
               scope = scope.joins(join(foreign_table, constraint))

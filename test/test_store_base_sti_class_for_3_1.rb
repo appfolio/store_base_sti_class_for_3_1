@@ -51,6 +51,20 @@ class TestStoreBaseStiNameFor30 < ActiveRecord::TestCase
     assert_equal tagging, post.tagging
   end
   
+  def test_polymorphic_has_many_create_via_association
+    tag = SpecialTag.create!(:name => 'Special')
+    tagging = tag.polytaggings.create!
+    
+    assert_equal "SpecialTag", tagging.polytag_type
+  end
+
+  def test_polymorphic_has_many_through_create_via_association
+    tag = SpecialTag.create!(:name => 'Special')
+    post = tag.polytagged_posts.create!(:title => 'To Be or Not To Be?')
+    
+    assert_equal "SpecialTag", tag.polytaggings.first.polytag_type
+  end
+  
   def test_include_polymorphic_has_one
     post = SpecialPost.create!(:title => 'Budget Forecasts Bigger 2011 Deficit')
     tagging = post.create_tagging(:tag => @misc_tag)
